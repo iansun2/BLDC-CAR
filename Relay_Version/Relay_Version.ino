@@ -23,66 +23,63 @@ void setup() {
 
   xTaskCreate(Task_lpwm_input, "lpwm_input", 128 ,NULL, 2, &lpwm_input_handle);   //task create
   xTaskCreate(Task_rpwm_input, "rpwm_input", 128 ,NULL, 2, &rpwm_input_handle);
-  xTaskCreate(Task_current_input, "current_input", 128 ,NULL, 2, &current_input_handle);
-  xTaskCreate(Task_wpshutdown_input, "current_input", 128 ,NULL, 2, &wpshutdown_input_handle);
+  xTaskCreate(Task_current_input, "current_input", 128 ,NULL, 1, &current_input_handle);
+  xTaskCreate(Task_wpshutdown_input, "current_input", 128 ,NULL, 1, &wpshutdown_input_handle);
   
-  xTaskCreate(Task_lswitch, "lswitch", 128 ,NULL, 2, &lswitch_handle);
-  xTaskCreate(Task_rswitch, "rswitch", 128 ,NULL, 2, &rswitch_handle);
+  xTaskCreate(Task_lswitch, "lswitch", 128 ,NULL, 1, &lswitch_handle);
+  xTaskCreate(Task_rswitch, "rswitch", 128 ,NULL, 1, &rswitch_handle);
   
-  xTaskCreate(Task_wppwm_output, "wppwm_output", 128 ,NULL, 2, &wppwm_output_handle);
-  xTaskCreate(Task_lpwm_output, "lpwm_output", 128 ,NULL, 2, &lpwm_output_handle);
-  xTaskCreate(Task_rpwm_output, "rpwm_output", 128 ,NULL, 2, &rpwm_output_handle);
+  xTaskCreate(Task_wppwm_output, "wppwm_output", 128 ,NULL, 1, &wppwm_output_handle);
+  xTaskCreate(Task_lpwm_output, "lpwm_output", 128 ,NULL, 1, &lpwm_output_handle);
+  xTaskCreate(Task_rpwm_output, "rpwm_output", 128 ,NULL, 1, &rpwm_output_handle);
 }
 
 //pwm_input//=========================================================================================
 
 void Task_lpwm_input(void *pvParameters){
   (void) pvParameters;
-  unsigned long rd_high,rd_low,cycle_time;
-  
-  while(1){
-    //.....................................................................
+  unsigned long rd_high;
+  unsigned long last_average = 1500;
+  while(1){ 
     rd_high = pulseIn(lpwm_input_pin,1,pulse_timeout);    //read left pwm input 
-    rd_low = pulseIn(lpwm_input_pin,0,pulse_timeout);
-
-    if(rd_high && rd_low){
-      cycle_time = rd_high + rd_low;
-      l_duty = (rd_high*1000) / cycle_time;
-      if(l_duty >= 700){                    //if left positive
-        l_pwm = map(l_duty,700,1000,1000,2000);
-      }else if(l_duty <= 300){              //if left negative
-        l_pwm = map(l_duty,0,300,-2000,-1000);
-      }else{
-        l_pwm = 1000;
-      }
+    last_average *= 5;        //noise filter
+    last_average += rd_high;
+    last_average /= 6;
+    rd_high = last_average;
+    if(rd_high >= 1700){                    //if left positive
+      l_pwm = map(rd_high,1700,1900,1000,2000);
+    }else if(rd_high <= 1300){              //if left negative
+      l_pwm = map(rd_high,1050,1300,-2000,-1000);
+    }else{
+      l_pwm = 1000;
     }  
-    //Serial.print("l_duty:");
-    //Serial.print(l_duty);  
+    //Serial.print("l_rd_high:");
+    //Serial.println(rd_high); 
     vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
 }
 //-------------------------------------------------------------------
 void Task_rpwm_input(void *pvParameters){
   (void) pvParameters;
-  unsigned long rd_high,rd_low,cycle_time;
-  
+  unsigned long rd_high;
+  unsigned long last_average = 1500;
   while(1){
     rd_high = pulseIn(rpwm_input_pin,1,pulse_timeout);    //read right pwm input 
-    rd_low = pulseIn(rpwm_input_pin,0,pulse_timeout);
-    
-    if(rd_high && rd_low){
-      cycle_time = rd_high + rd_low;
-      r_duty = (rd_high*1000) / cycle_time;
-      if(r_duty >= 700){                    //if right positive
-        r_pwm = map(r_duty,700,1000,1000,2000);
-      }else if(r_duty <= 300){              //if right negative
-        r_pwm = map(r_duty,0,300,-2000,-1000);
+    last_average *= 5;        //noise filter
+    last_average += rd_high;
+    last_average /= 6;
+    rd_high = last_average;
+    if(rd_high){
+      if(rd_high <= 1300){              //if right positive
+        r_pwm = map(rd_high,1050,1300,2000,1000);
+      }else if(rd_high >= 1700){                    //if right negative
+        r_pwm = map(rd_high,1700,1900,-1000,-2000);
       }else{
         r_pwm = 1000;
       }
     }
-    //Serial.print("r_duty:");
-    //Serial.print(r_duty);
+    //Serial.print("r_rd_high:");
+    //Serial.println(rd_high);
     vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
 }
@@ -109,8 +106,8 @@ void Task_current_input(void *pvParameters){
       //..............................................................
       current_read = analogRead(wpcurrent_input_pin);
       if(current_read >= weapon_current_max){
-        wp_pwm = (wp_pwm - 1000) / 2 + 1000 ;
-      }else if(wp_pwm <= 1980){
+        wp_pwm = (wp_pwm - 900) / 2 + 900 ;
+      }else if(wp_pwm <= 2180){
         wp_pwm += 20;
       }
       vTaskDelay( 50 / portTICK_PERIOD_MS );
@@ -122,7 +119,7 @@ void Task_wpshutdown_input(void *pvParameters){
     (void) pvParameters;
     bool last_status = 0;
     while(1){
-      while(digitalRead(wpshutdown_input_pin)){
+      while(pulseIn(wpshutdown_input_pin,1,pulse_timeout) < 1500){
         vTaskSuspend(wppwm_output_handle);
         wp_esc.writeMicroseconds(1000);
         last_status = 1;
@@ -130,6 +127,7 @@ void Task_wpshutdown_input(void *pvParameters){
       }
       if(last_status){
         last_status = 0;
+        wp_pwm = 900;
         vTaskResume(wppwm_output_handle);
       }
       vTaskDelay( 100 / portTICK_PERIOD_MS );
@@ -227,8 +225,8 @@ void Task_rpwm_output(void *pvParameters){
 void Task_wppwm_output(void *pvParameters){
   (void) pvParameters;
   while(1){
-    Serial.print("wp_pwm: ");
-    Serial.println(wp_pwm);
+    //Serial.print("wp_pwm: ");
+    //Serial.println(wp_pwm);
     wp_esc.writeMicroseconds(abs(wp_pwm));
     vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
