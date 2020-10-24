@@ -21,23 +21,23 @@ void setup() {
   r_esc.writeMicroseconds(1460);
   delay(5000);
 
-  xTaskCreate(Task_lpwm_input, "lpwm_input", 128 ,NULL, 2, &lpwm_input_handle);   //task create
-  xTaskCreate(Task_rpwm_input, "rpwm_input", 128 ,NULL, 2, &rpwm_input_handle);
-  xTaskCreate(Task_current_input, "current_input", 128 ,NULL, 1, &current_input_handle);
-  xTaskCreate(Task_wpshutdown_input, "current_input", 128 ,NULL, 1, &wpshutdown_input_handle);
+  xTaskCreate(Task_pwm_input, "pwm_input", 128 ,NULL, 2, &pwm_input_handle);   //task create
+  xTaskCreate(Task_wpshutdown_input, "wpshutdown_input", 128 ,NULL, 1, &wpshutdown_input_handle);
   
   xTaskCreate(Task_wppwm_output, "wppwm_output", 128 ,NULL, 1, &wppwm_output_handle);
-  xTaskCreate(Task_lpwm_output, "lpwm_output", 128 ,NULL, 1, &lpwm_output_handle);
-  xTaskCreate(Task_rpwm_output, "rpwm_output", 128 ,NULL, 1, &rpwm_output_handle);
+  xTaskCreate(Task_pwm_output, "pwm_output", 128 ,NULL, 1, &pwm_output_handle);
 }
 
 //pwm_input//=========================================================================================
 
-void Task_lpwm_input(void *pvParameters){
+void Task_pwm_input(void *pvParameters){
   (void) pvParameters;
   unsigned long rd_high;
   unsigned long last_average = 1460;
   while(1){ 
+    //pwm_in//------------------------------------------------------------
+    
+    //lpwm//
     rd_high = pulseIn(lpwm_input_pin,1,pulse_timeout);    //read left pwm input 
     last_average *= 5;        //noise filter
     last_average += rd_high;
@@ -51,16 +51,9 @@ void Task_lpwm_input(void *pvParameters){
       l_pwm = 1460;
     }  
     //Serial.print("l_rd_high:");
-    //Serial.println(rd_high); 
-    vTaskDelay( 50 / portTICK_PERIOD_MS );
-  }
-}
-//-------------------------------------------------------------------
-void Task_rpwm_input(void *pvParameters){
-  (void) pvParameters;
-  unsigned long rd_high;
-  unsigned long last_average = 1460;
-  while(1){
+    //Serial.println(rd_high);
+     
+    //rpwm_in//
     rd_high = pulseIn(rpwm_input_pin,1,pulse_timeout);    //read right pwm input 
     last_average *= 5;        //noise filter
     last_average += rd_high;
@@ -77,17 +70,9 @@ void Task_rpwm_input(void *pvParameters){
     }
     Serial.print("r_rd_high:");
     Serial.println(rd_high);
-    vTaskDelay( 50 / portTICK_PERIOD_MS );
-  }
-}
-//current sensor input//========================================================================
 
-void Task_current_input(void *pvParameters){
-    (void) pvParameters;
-    int current_read;
-    
-    while(1){
-      current_read = analogRead(lcurrent_input_pin);
+    //current sensor input//---------------------------------------------------
+    current_read = analogRead(lcurrent_input_pin);
       if(current_read >= wheel_current_max){
         l_pwm_max = (l_pwm_max - 1000) / 2 + 1000;
       }else if(l_pwm_max <= 1980){
@@ -108,8 +93,9 @@ void Task_current_input(void *pvParameters){
         wp_pwm += 10;
       }
       vTaskDelay( 50 / portTICK_PERIOD_MS );
-    }
+  }
 }
+
 //wpshutdown//=====================================================================================
 
 void Task_wpshutdown_input(void *pvParameters){
@@ -159,9 +145,11 @@ void Task_wpshutdown_input(void *pvParameters){
 
 //pwm_output//=========================================================================================
 
-void Task_lpwm_output(void *pvParameters){
+void Task_pwm_output(void *pvParameters){
   (void) pvParameters;
   while(1){
+    
+    //lpwm//---------------------------------
     if(l_pwm > l_pwm_max){
       l_pwm = l_pwm_max;
     }
@@ -170,13 +158,8 @@ void Task_lpwm_output(void *pvParameters){
     //Serial.print("l_pwm: ");
     //Serial.println(l_pwm);
     l_esc.writeMicroseconds(l_pwm);
-    vTaskDelay( 50 / portTICK_PERIOD_MS );
-  }
-}
-//----------------------------------------------------------------------------------
-void Task_rpwm_output(void *pvParameters){
-  (void) pvParameters;
-  while(1){
+
+    //rpwm//---------------------------------
     if(r_pwm > r_pwm_max){
       r_pwm = r_pwm_max;
     }
@@ -185,11 +168,12 @@ void Task_rpwm_output(void *pvParameters){
     Serial.print("r_pwm: ");
     Serial.println(r_pwm);
     r_esc.writeMicroseconds(r_pwm);
+
     vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
 }
 
-//----------------------------------------------------------------------------------------------
+//wppwm_output//=====================================================================
 void Task_wppwm_output(void *pvParameters){
   (void) pvParameters;
   vTaskDelay( 500 / portTICK_PERIOD_MS );

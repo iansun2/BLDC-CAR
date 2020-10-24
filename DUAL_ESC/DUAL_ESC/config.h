@@ -15,23 +15,17 @@
 #define wheel_current_max 300
 #define weapon_current_max 500
 
-TaskHandle_t lpwm_input_handle;   //pwm input
-TaskHandle_t rpwm_input_handle;
-TaskHandle_t current_input_handle;   //current sensor input
+TaskHandle_t pwm_input_handle;   //pwm input
 TaskHandle_t wpshutdown_input_handle;   //weapon shutdown input & ctrl
 
-TaskHandle_t lpwm_output_handle;     //pwm output  
-TaskHandle_t rpwm_output_handle;
+TaskHandle_t pwm_output_handle;     //pwm output  
 TaskHandle_t wppwm_output_handle;    
 
 
-void Task_lpwm_input( void *pvParameters );   //pwm input
-void Task_rpwm_input( void *pvParameters );
-void Task_current_input( void *pvParameters );     //current sensor input
+void Task_input( void *pvParameters );   //pwm input
 void Task_wpshutdown_input( void *pvParameters );   //weapon shutdown input & ctrl
 
-void Task_lpwm_output( void *pvParameters );    //pwm output   
-void Task_rpwm_output( void *pvParameters );
+void Task_pwm_output( void *pvParameters );    //pwm output   
 void Task_wppwm_output( void *pvParameters );   
 
 
