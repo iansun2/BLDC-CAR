@@ -5,8 +5,8 @@ void setup() {
   pinMode(11,OUTPUT);
   digitalWrite(11,1);
   ESC.attach(9);
-  //ESC.writeMicroseconds(2000);
-  //delay(3000);
+  ESC.writeMicroseconds(2000);
+  delay(3000);
   ESC.writeMicroseconds(1000);
   delay(5000);
   ESC.writeMicroseconds(1200);
