@@ -11,9 +11,9 @@
 #define lpwm_output_pin 9
 #define rpwm_output_pin 10
 
-#define pulse_timeout 100000
-#define wheel_current_max 300
-#define weapon_current_max 500
+#define pulse_timeout 50000
+#define wheel_current_max 2000
+#define weapon_current_max 2000
 
 TaskHandle_t pwm_input_handle;   //pwm input
 TaskHandle_t wpshutdown_input_handle;   //weapon shutdown input & ctrl
@@ -35,3 +35,4 @@ Servo wp_esc;
 
 int l_pwm = 1000,r_pwm = 1000,wp_pwm = 1000;
 int l_pwm_max = 2000,r_pwm_max = 2000;
+int wp_read = 1000;
