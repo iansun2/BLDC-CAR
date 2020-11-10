@@ -1,8 +1,8 @@
 #include <Arduino_FreeRTOS.h>
 #include <Servo.h>
 
-#define lpwm_input_pin 2    //pwm input
-#define rpwm_input_pin 3
+#define xpwm_input_pin 2    //pwm input
+#define ypwm_input_pin 3
 #define wpcurrent_input_pin A0    //current input
 #define lcurrent_input_pin A1
 #define rcurrent_input_pin A2
@@ -12,8 +12,8 @@
 #define rpwm_output_pin 10
 
 #define pulse_timeout 50000
-#define wheel_current_max 2000   //40A *5
-#define weapon_current_max 3500    //70A *5
+#define wheel_current_max 200   //40A *4
+#define weapon_current_max 350    //70A *4
 
 #define wheel_stop_pwm 1472
 
