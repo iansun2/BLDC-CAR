@@ -21,14 +21,14 @@ void setup() {
   l_esc.writeMicroseconds(wheel_stop_pwm);
   r_esc.writeMicroseconds(wheel_stop_pwm);
   delay(3000);
-  while(pulseIn(xpwm_input_pin,1,pulse_timeout) < 850){
+  while(pulseIn(wpshutdown_input_pin,1,pulse_timeout) < 1850 || pulseIn(wpshutdown_input_pin,1,pulse_timeout) > 2150){
     Serial.println("Controller no connect");
   }
   Serial.println("task starts");
   xTaskCreate(Task_pwm_input, "pwm_input", 128 ,NULL, 2, &pwm_input_handle);   //task create
   xTaskCreate(Task_wpshutdown_input, "wpshutdown_input", 128 ,NULL, 0, &wpshutdown_input_handle);
-  
-  xTaskCreate(Task_wppwm_output, "wppwm_output", 128 ,NULL, 0, &wppwm_output_handle);
+
+  xTaskCreate(Task_switch, "switch", 128 ,NULL, 1, &switch_handle);
   xTaskCreate(Task_pwm_output, "pwm_output", 128 ,NULL, 0, &pwm_output_handle);
 }
 
@@ -99,7 +99,7 @@ void Task_pwm_input(void *pvParameters){
       }
       
       //wpcurrent in//
-      current_read = analogRead(wpcurrent_input_pin);
+      current_read = abs(analogRead(wpcurrent_input_pin) - 512);
       if(current_read >= weapon_current_max){
         wp_pwm = (wp_pwm - 1000) / 2 + 1000 ;
       }else if(wp_pwm <= 1990){
@@ -119,7 +119,7 @@ void Task_wpshutdown_input(void *pvParameters){
       last_average = wp_read;
       //Serial.println(last_average);
       if(last_average < 700){     //if disconnect
-         vTaskSuspend(wppwm_output_handle);
+         wp_shutdown = 1;
          vTaskSuspend(pwm_output_handle);
         while(last_average < 700){
           last_average = wp_read;
@@ -154,6 +154,36 @@ void Task_wpshutdown_input(void *pvParameters){
     }
 }
 
+//switch//=========================================================================================
+
+void Task_switch(void *pvParameters){
+  (void) pvParameters;
+  bool l_pwm_last = 0;    //0:positive 1:negative
+  bool l_pwm_last = 0;    //0:positive 1:negative
+  
+  while(1){
+    if(l_pwm < 0 && !l_pwm_last){   //left positive to negative
+        vTaskSuspend(lpwm_output_handle);
+        l_esc.writeMicroseconds(1000);
+        digitalWrite(lrelay_pin,1);
+        l_pwm_last = 1;
+        Serial.println("left positive to negative");
+        vTaskDelay( 50 / portTICK_PERIOD_MS );
+        vTaskResume(lpwm_output_handle);
+        
+    }else if(l_pwm > 0 && l_pwm_last){   //left negative to positive
+        vTaskSuspend(lpwm_output_handle);
+        l_esc.writeMicroseconds(1000);
+        digitalWrite(lrelay_pin,0);
+        l_pwm_last = 0;
+        Serial.println("left negative to positive");
+        vTaskDelay( 50 / portTICK_PERIOD_MS );
+        vTaskResume(lpwm_output_handle);
+    }
+    vTaskDelay( 50 / portTICK_PERIOD_MS );
+  }
+}
+
 //pwm_output//==================================================================================================================================================
 
 void Task_pwm_output(void *pvParameters){
@@ -161,7 +191,7 @@ void Task_pwm_output(void *pvParameters){
   int lpwm_last = wheel_stop_pwm, rpwm_last = wheel_stop_pwm, lpwm_now = wheel_stop_pwm, rpwm_now = wheel_stop_pwm;
   while(1){
     
-    //lpwm//---------------------------------
+    //lpwm//----------------------------------------------------------
     lpwm_now = l_pwm;
     
     if(abs(lpwm_now-wheel_stop_pwm) > l_pwm_max-wheel_stop_pwm){
@@ -191,7 +221,7 @@ void Task_pwm_output(void *pvParameters){
     l_esc.writeMicroseconds(lpwm_now);
     lpwm_last = lpwm_now;
 
-    //rpwm//---------------------------------
+    //rpwm//----------------------------------------------
     rpwm_now = r_pwm;
     
     if(abs(rpwm_now-wheel_stop_pwm) > r_pwm_max-wheel_stop_pwm){
@@ -220,21 +250,15 @@ void Task_pwm_output(void *pvParameters){
     
     r_esc.writeMicroseconds(rpwm_now);
     rpwm_last = rpwm_now;
-    
+
+    //rpwm//------------------------------------------
+    if(!wp_shutdown){
+      wp_esc.writeMicroseconds(abs(wp_pwm));
+    }
     vTaskDelay( 100 / portTICK_PERIOD_MS );
     }
 }
-//wppwm_output//============================================================================================================================================
-void Task_wppwm_output(void *pvParameters){
-  (void) pvParameters;
-  vTaskDelay( 500 / portTICK_PERIOD_MS );
-  while(1){
-    //Serial.print("wp_pwm: ");
-    //Serial.println(wp_pwm);
-    wp_esc.writeMicroseconds(abs(wp_pwm));
-    vTaskDelay( 100 / portTICK_PERIOD_MS );
-  }
-}
+
 
 
 void loop() {}
