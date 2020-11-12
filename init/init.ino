@@ -2,8 +2,6 @@
 Servo ESC;
 void setup() {
   // put your setup code here, to run once:
-  pinMode(11,OUTPUT);
-  digitalWrite(11,1);
   ESC.attach(9);
   ESC.writeMicroseconds(2000);
   delay(3000);

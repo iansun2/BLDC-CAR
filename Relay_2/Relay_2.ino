@@ -26,10 +26,10 @@ void setup() {
   }
   Serial.println("task starts");
   xTaskCreate(Task_pwm_input, "pwm_input", 128 ,NULL, 2, &pwm_input_handle);   //task create
-  xTaskCreate(Task_wpshutdown_input, "wpshutdown_input", 128 ,NULL, 0, &wpshutdown_input_handle);
+  xTaskCreate(Task_wpshutdown, "wpshutdown", 128 ,NULL, 0, &wpshutdown_handle);
 
-  xTaskCreate(Task_switch, "switch", 128 ,NULL, 1, &switch_handle);
-  xTaskCreate(Task_pwm_output, "pwm_output", 128 ,NULL, 0, &pwm_output_handle);
+  xTaskCreate(Task_lpwm_output, "lpwm_output", 128 ,NULL, 1, &lpwm_output_handle);
+  xTaskCreate(Task_rpwm_output, "rpwm_output", 128 ,NULL, 0, &rpwm_output_handle);
 }
 
 //pwm_input//=========================================================================================================================
@@ -47,30 +47,30 @@ void Task_pwm_input(void *pvParameters){
     xrd_high = pulseIn(xpwm_input_pin,1,pulse_timeout);
     
     if(yrd_high <= 1300 && xrd_high <= 1700 && xrd_high >= 1300){                 //front only
-      l_pwm = map(yrd_high,1300,1050,1600,2000);
-      r_pwm = map(yrd_high,1300,1050,1600,2000);
+      l_pwm = map(yrd_high,1300,1050,1000,2000);
+      r_pwm = map(yrd_high,1300,1050,1000,2000);
     }else if(xrd_high >= 1700 && yrd_high <= 1700 && yrd_high >= 1300){           //right only
-      l_pwm = map(xrd_high,1700,1900,1600,2000);
-      r_pwm = map(xrd_high,1700,1900,1400,1000);
+      l_pwm = map(xrd_high,1700,1900,1000,2000);
+      r_pwm = map(xrd_high,1700,1900,-1000,-2000);
     }else if(xrd_high <= 1300 && yrd_high <= 1700 && yrd_high >= 1300){           //left only
-      l_pwm = map(xrd_high,1300,1050,1400,1000);
-      r_pwm = map(xrd_high,1300,1050,1600,2000);
+      l_pwm = map(xrd_high,1300,1050,-1000,-2000);
+      r_pwm = map(xrd_high,1300,1050,1000,2000);
     }else if(yrd_high >= 1700 && xrd_high <= 1700 && xrd_high >= 1300){           //back only
-      l_pwm = map(yrd_high,1700,1900,1400,1000);
-      r_pwm = map(yrd_high,1700,1900,1400,1000);
+      l_pwm = map(yrd_high,1700,1900,-1000,-2000);
+      r_pwm = map(yrd_high,1700,1900,-1000,-2000);
     }else{
       if(yrd_high <= 1300 && xrd_high >= 1700){                                   //front right
         l_pwm = 2000;
-        r_pwm = map(xrd_high,1700,1900,2000,1600);
+        r_pwm = map(xrd_high,1700,1900,2000,1000);
       }else if(yrd_high <= 1300 && xrd_high <= 1300){                             //front left
-        l_pwm = map(xrd_high,1300,1050,2000,1600);
+        l_pwm = map(xrd_high,1300,1050,2000,1000);
         r_pwm = 2000;
       }else if(yrd_high >= 1700 && xrd_high >= 1700){                             //back right
-        l_pwm = 1000;
-        r_pwm = map(xrd_high,1700,1900,1000,1300);
+        l_pwm = -2000;
+        r_pwm = map(xrd_high,1700,1900,-2000,-1000);
       }else if(yrd_high >= 1700 && xrd_high <= 1300){                             //back left
-        l_pwm = map(xrd_high,1300,1050,1000,1300);
-        r_pwm = 1000;
+        l_pwm = map(xrd_high,1300,1050,-2000,-1000);
+        r_pwm = -2000;
       }else{
         r_pwm = wheel_stop_pwm;
         l_pwm = wheel_stop_pwm;
@@ -111,150 +111,184 @@ void Task_pwm_input(void *pvParameters){
 
 //wpshutdown//===========================================================================================================================================
 
-void Task_wpshutdown_input(void *pvParameters){
+void Task_wpshutdown(void *pvParameters){
     (void) pvParameters;
-    bool last_status = 0;   //0:ok 1:error
-    unsigned long last_average = 1000;
+    bool shutdown_stats = 0;   //0:ok 1:error
     while(1){
-      last_average = wp_read;
-      //Serial.println(last_average);
-      if(last_average < 700){     //if disconnect
-         wp_shutdown = 1;
-         vTaskSuspend(pwm_output_handle);
-        while(last_average < 700){
-          last_average = wp_read;
-          wp_esc.writeMicroseconds(1000);
-          l_esc.writeMicroseconds(wheel_stop_pwm);
-          r_esc.writeMicroseconds(wheel_stop_pwm);
-          last_status = 1;
-          Serial.println(last_average);
-          Serial.println("wp_no_signal_shutdown");
-          vTaskDelay( 150 / portTICK_PERIOD_MS );
-        }
+      //Serial.println(wp_read);
+      while(wp_read < 700){   //if disconnect
+         shutdown_stats = 1;
+         vTaskSuspend(lpwm_output_handle);
+         vTaskSuspend(rpwm_output_handle);
+         wp_esc.writeMicroseconds(1000);
+         l_esc.writeMicroseconds(wheel_stop_pwm);
+         r_esc.writeMicroseconds(wheel_stop_pwm);
+         Serial.print("wp_no_signal_shutdown: ");
+         Serial.println(wp_read);
+         vTaskDelay( 200 / portTICK_PERIOD_MS );
       }
-      if(last_average > 1250){      //if shutdown
-        vTaskSuspend(wppwm_output_handle);
-        while(last_average > 1250){
-          last_average = wp_read;
-          wp_esc.writeMicroseconds(1000);
-          last_status = 1;
-          Serial.println(last_average);
-          Serial.println("wp_shutdown");
-          vTaskDelay( 150 / portTICK_PERIOD_MS );
-        }
+      while(wp_read > 1250){     //if wp shutdown
+         wp_esc.writeMicroseconds(1000);
+         Serial.print("wp_shutdown: ");
+         Serial.println(wp_read);
+         vTaskDelay( 200 / portTICK_PERIOD_MS );
       }
-      if(last_status){    //if status ok
+      if(shutdown_stats){    //if status ok
         Serial.println("wp_start");
-        last_status = 0;
+        shutdown_stats = 0;
         wp_pwm = 1000;
-        vTaskResume(wppwm_output_handle);
-        vTaskResume(pwm_output_handle);
+        vTaskResume(lpwm_output_handle);
+        vTaskResume(rpwm_output_handle);
       }
-      vTaskDelay( 150 / portTICK_PERIOD_MS );
+      wp_esc.writeMicroseconds(wp_pwm);
+      //Serial.println(wp_pwm);
+      vTaskDelay( 200 / portTICK_PERIOD_MS );
     }
 }
 
-//switch//=========================================================================================
-
-void Task_switch(void *pvParameters){
-  (void) pvParameters;
-  bool l_pwm_last = 0;    //0:positive 1:negative
-  bool l_pwm_last = 0;    //0:positive 1:negative
-  
-  while(1){
-    if(l_pwm < 0 && !l_pwm_last){   //left positive to negative
-        vTaskSuspend(lpwm_output_handle);
-        l_esc.writeMicroseconds(1000);
-        digitalWrite(lrelay_pin,1);
-        l_pwm_last = 1;
-        Serial.println("left positive to negative");
-        vTaskDelay( 50 / portTICK_PERIOD_MS );
-        vTaskResume(lpwm_output_handle);
-        
-    }else if(l_pwm > 0 && l_pwm_last){   //left negative to positive
-        vTaskSuspend(lpwm_output_handle);
-        l_esc.writeMicroseconds(1000);
-        digitalWrite(lrelay_pin,0);
-        l_pwm_last = 0;
-        Serial.println("left negative to positive");
-        vTaskDelay( 50 / portTICK_PERIOD_MS );
-        vTaskResume(lpwm_output_handle);
-    }
-    vTaskDelay( 50 / portTICK_PERIOD_MS );
-  }
-}
 
 //pwm_output//==================================================================================================================================================
 
-void Task_pwm_output(void *pvParameters){
+//lpwm//-----------------------------------------------------------------------
+void Task_lpwm_output(void *pvParameters){
   (void) pvParameters;
-  int lpwm_last = wheel_stop_pwm, rpwm_last = wheel_stop_pwm, lpwm_now = wheel_stop_pwm, rpwm_now = wheel_stop_pwm;
+  
+  bool l_reverse = 0;    //0:positive 1:negative
+  int lpwm_last = wheel_stop_pwm;
+  int lpwm_fix = wheel_stop_pwm; 
+  int d_speed = 100;
+  
   while(1){
-    
-    //lpwm//----------------------------------------------------------
-    lpwm_now = l_pwm;
-    
-    if(abs(lpwm_now-wheel_stop_pwm) > l_pwm_max-wheel_stop_pwm){
-      if((lpwm_now-wheel_stop_pwm) > 0){
-        lpwm_now = l_pwm_max;
-      }else if((lpwm_now-wheel_stop_pwm) < 0){
-        lpwm_now = wheel_stop_pwm - (l_pwm_max - wheel_stop_pwm);
+    lpwm_fix = l_pwm;
+    if( abs(abs(lpwm_fix) - abs(lpwm_last)) > d_speed){
+      if(lpwm_fix >= 0){
+        if(lpwm_fix > lpwm_last){
+          lpwm_fix = lpwm_last + d_speed;
+        }else if(lpwm_fix < lpwm_last){
+          lpwm_fix = lpwm_last - d_speed;
+        }
+      }else if(lpwm_fix <= 0){
+        if(lpwm_fix < lpwm_last){
+          lpwm_fix = lpwm_last - d_speed;
+        }else if(lpwm_fix > lpwm_last){
+          lpwm_fix = lpwm_last + d_speed;
+        }
       }
     }
-    
-    if(lpwm_now - lpwm_last > 20){
-      if(lpwm_last < 1750 && lpwm_last > 1250){
-        lpwm_now = lpwm_last+20;
-      }
-    }else if(lpwm_now - lpwm_last < -20){
-      if(lpwm_last < 1750 && lpwm_last > 1250){
-        lpwm_now = lpwm_last-20;
-      }
-    }
-    //Serial.print("l_pwm_max: ");
-    //Serial.println(l_pwm_max);
-    //Serial.print("l_pwm: ");
-    //Serial.println(l_pwm);
-    Serial.print("l_pwm_now: ");
-    Serial.println(lpwm_now);
-    
-    l_esc.writeMicroseconds(lpwm_now);
-    lpwm_last = lpwm_now;
 
-    //rpwm//----------------------------------------------
-    rpwm_now = r_pwm;
+    if(lpwm_fix >= 0 && lpwm_fix < 1000){
+      lpwm_fix = -1000;
+      lpwm_last = -1000;
+    }else if(lpwm_fix < 0 && lpwm_fix > -1000){
+      lpwm_fix = 1000;
+      lpwm_last = 1000;
+    }
     
-    if(abs(rpwm_now-wheel_stop_pwm) > r_pwm_max-wheel_stop_pwm){
-      if((rpwm_now-wheel_stop_pwm) > 0){
-        rpwm_now = r_pwm_max;
-      }else if((rpwm_now-wheel_stop_pwm) < 0){
-        rpwm_now = wheel_stop_pwm - (r_pwm_max - wheel_stop_pwm);
+    if( abs(lpwm_fix) > l_pwm_max){
+      if(lpwm_fix > 0){
+        lpwm_fix = l_pwm_max;
+      }else if(lpwm_fix < 0){
+        lpwm_fix = -l_pwm_max;
       }
     }
     
-    if(rpwm_now - rpwm_last > 20){
-      if(rpwm_last < 1750 && rpwm_last > 1250){
-        rpwm_now = rpwm_last+20;
-      }
-    }else if(rpwm_now - rpwm_last < -20){
-      if(rpwm_last < 1750 && rpwm_last > 1250){
-        rpwm_now = rpwm_last-20;
-      }
+    if(lpwm_fix < 0 && !l_reverse){   //left positive to negative
+      l_esc.writeMicroseconds(1000);
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
+      digitalWrite(l_relay_pin,1);
+      l_reverse = 1;
+      Serial.println("left positive to negative");
+    }else if(lpwm_fix > 0 && l_reverse){     //left negative to positive
+      l_esc.writeMicroseconds(1000);
+      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      digitalWrite(l_relay_pin,0);
+      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      l_reverse = 0;
+      Serial.println("left negative to positive");
     }
-    //Serial.print("r_pwm_max: ");
-    //Serial.println(r_pwm_max);
-    //Serial.print("r_pwm: ");
-    //Serial.println(r_pwm);
-    Serial.print("r_pwm_now: ");
-    Serial.println(rpwm_now);
     
-    r_esc.writeMicroseconds(rpwm_now);
-    rpwm_last = rpwm_now;
+      //Serial.print("l_pwm_max: ");
+      //Serial.println(l_pwm_max);
+      //Serial.print("l_pwm: ");
+      //Serial.println(l_pwm);
+      Serial.print("l_pwm_fix: ");
+      Serial.println(lpwm_fix);
+      
+      l_esc.writeMicroseconds(abs(lpwm_fix));
+      lpwm_last = lpwm_fix;
 
-    //rpwm//------------------------------------------
-    if(!wp_shutdown){
-      wp_esc.writeMicroseconds(abs(wp_pwm));
+    vTaskDelay( 100 / portTICK_PERIOD_MS );
     }
+}
+
+//rpwm//-----------------------------------------------------------------------
+void Task_rpwm_output(void *pvParameters){
+  (void) pvParameters;
+  
+  bool r_reverse = 0;    //0:positive 1:negative
+  int rpwm_last = wheel_stop_pwm;
+  int rpwm_fix = wheel_stop_pwm; 
+  int d_speed = 100;
+  
+  while(1){
+    rpwm_fix = r_pwm;
+    
+    if( abs(abs(rpwm_fix) - abs(rpwm_last)) > d_speed){
+      if(rpwm_fix >= 0){
+        if(rpwm_fix > rpwm_last){
+          rpwm_fix = rpwm_last + d_speed;
+        }else if(rpwm_fix < rpwm_last){
+          rpwm_fix = rpwm_last - d_speed;
+        }
+      }else if(rpwm_fix <= 0){
+        if(rpwm_fix < rpwm_last){
+          rpwm_fix = rpwm_last - d_speed;
+        }else if(rpwm_fix > rpwm_last){
+          rpwm_fix = rpwm_last + d_speed;
+        }
+      }
+    }
+
+    if(rpwm_fix >= 0 && rpwm_fix < 1000){
+      rpwm_fix = -1000;
+      rpwm_last = -1000;
+    }else if(rpwm_fix < 0 && rpwm_fix > -1000){
+      rpwm_fix = 1000;
+      rpwm_last = 1000;
+    }
+    
+    if( abs(rpwm_fix) > r_pwm_max){
+      if(rpwm_fix > 0){
+        rpwm_fix = r_pwm_max;
+      }else if(rpwm_fix < 0){
+        rpwm_fix = -r_pwm_max;
+      }
+    }
+
+    if(rpwm_fix < 0 && !r_reverse){   //left positive to negative
+      r_esc.writeMicroseconds(1000);
+      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      digitalWrite(r_relay_pin,1);
+      r_reverse = 1;
+      Serial.println("right positive to negative");
+    }else if(rpwm_fix > 0 && r_reverse){     //left negative to positive
+      r_esc.writeMicroseconds(1000);
+      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      digitalWrite(r_relay_pin,0);
+      r_reverse = 0;
+      Serial.println("right negative to positive");
+    }
+    
+      //Serial.print("r_pwm_max: ");
+      //Serial.println(r_pwm_max);
+      //Serial.print("r_pwm: ");
+      //Serial.println(r_pwm);
+      Serial.print("r_pwm_fix: ");
+      Serial.println(rpwm_fix);
+      
+      r_esc.writeMicroseconds(abs(rpwm_fix));
+      rpwm_last = rpwm_fix;
+
     vTaskDelay( 100 / portTICK_PERIOD_MS );
     }
 }
