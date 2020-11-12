@@ -3,16 +3,16 @@
 
 #define xpwm_input_pin 2    //pwm input
 #define ypwm_input_pin 3
-#define lcurrent_input_pin A1    //current input
-#define rcurrent_input_pin A2
+#define lcurrent_input_pin A2    //current input
+#define rcurrent_input_pin A1
 #define shutdown_input_pin 4       //weapon shutdown input
-#define lpwm_output_pin 9
-#define rpwm_output_pin 10
+#define lpwm_output_pin 10
+#define rpwm_output_pin 9
 #define l_relay_pin 12
 #define r_relay_pin 11
 
 #define pulse_timeout 50000
-#define wheel_current_max 1600   //40A *4
+#define wheel_current_max 80   //20A *4
 
 #define wheel_stop_pwm 1000
 
