@@ -8,25 +8,22 @@ void setup() {
   DDRB = B11111000;
   pinMode(ypwm_input_pin,INPUT);
   pinMode(xpwm_input_pin,INPUT);
-  pinMode(wpcurrent_input_pin,INPUT);
   pinMode(lcurrent_input_pin,INPUT);
   pinMode(rcurrent_input_pin,INPUT);
-  pinMode(wpshutdown_input_pin,INPUT);
+  pinMode(shutdown_input_pin,INPUT);
   
-  wp_esc.attach(wppwm_output_pin);   //esc init
-  l_esc.attach(lpwm_output_pin);
+  l_esc.attach(lpwm_output_pin);    //esc init
   r_esc.attach(rpwm_output_pin);
   
-  wp_esc.writeMicroseconds(1000);
   l_esc.writeMicroseconds(wheel_stop_pwm);
   r_esc.writeMicroseconds(wheel_stop_pwm);
   delay(3000);
-  while(pulseIn(wpshutdown_input_pin,1,pulse_timeout) < 1850 || pulseIn(wpshutdown_input_pin,1,pulse_timeout) > 2150){
+  while(pulseIn(shutdown_input_pin,1,pulse_timeout) < 1850 || pulseIn(shutdown_input_pin,1,pulse_timeout) > 2150){
     Serial.println("Controller no connect");
   }
   Serial.println("task starts");
   xTaskCreate(Task_pwm_input, "pwm_input", 128 ,NULL, 2, &pwm_input_handle);   //task create
-  xTaskCreate(Task_wpshutdown, "wpshutdown", 128 ,NULL, 0, &wpshutdown_handle);
+  xTaskCreate(Task_shutdown, "shutdown", 128 ,NULL, 0, &shutdown_handle);
 
   xTaskCreate(Task_lpwm_output, "lpwm_output", 128 ,NULL, 1, &lpwm_output_handle);
   xTaskCreate(Task_rpwm_output, "rpwm_output", 128 ,NULL, 0, &rpwm_output_handle);
@@ -52,10 +49,10 @@ void Task_pwm_input(void *pvParameters){
     }else if(xrd_high >= 1700 && yrd_high <= 1700 && yrd_high >= 1300){           //right only
       l_pwm = map(xrd_high,1700,1900,1000,2000);
       //r_pwm = map(xrd_high,1700,1900,-1000,-2000);
-      r_pwm = 1000;
+      r_pwm = -1300;
     }else if(xrd_high <= 1300 && yrd_high <= 1700 && yrd_high >= 1300){           //left only
       //l_pwm = map(xrd_high,1300,1050,-1000,-2000);
-      l_pwm = 1000;
+      l_pwm = -1300;
       r_pwm = map(xrd_high,1300,1050,1000,2000);
     }else if(yrd_high >= 1700 && xrd_high <= 1700 && xrd_high >= 1300){           //back only
       l_pwm = map(yrd_high,1700,1900,-1000,-2000);
@@ -80,7 +77,7 @@ void Task_pwm_input(void *pvParameters){
     }
 
     //wppwm_in//
-    wp_read = pulseIn(wpshutdown_input_pin,1,pulse_timeout);   //read weapon pwm input 
+    wp_read = pulseIn(shutdown_input_pin,1,pulse_timeout);   //read weapon pwm input 
 
     //current sensor input//---------------------------------------------------
     
@@ -99,21 +96,14 @@ void Task_pwm_input(void *pvParameters){
       }else if(r_pwm_max <= 1980){
         r_pwm_max += 20;
       }
-      
-      //wpcurrent in//
-      current_read = abs(analogRead(wpcurrent_input_pin) - 512);
-      if(current_read >= weapon_current_max){
-        wp_pwm = (wp_pwm - 1000) / 2 + 1000 ;
-      }else if(wp_pwm <= 1990){
-        wp_pwm += 10;
-      }
+     
       vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
 }
 
 //wpshutdown//===========================================================================================================================================
 
-void Task_wpshutdown(void *pvParameters){
+void Task_shutdown(void *pvParameters){
     (void) pvParameters;
     bool shutdown_stats = 0;   //0:ok 1:error
     while(1){
@@ -122,7 +112,6 @@ void Task_wpshutdown(void *pvParameters){
          shutdown_stats = 1;
          vTaskSuspend(lpwm_output_handle);
          vTaskSuspend(rpwm_output_handle);
-         wp_esc.writeMicroseconds(1000);
          l_esc.writeMicroseconds(wheel_stop_pwm);
          r_esc.writeMicroseconds(wheel_stop_pwm);
          Serial.print("wp_no_signal_shutdown: ");
@@ -130,7 +119,6 @@ void Task_wpshutdown(void *pvParameters){
          vTaskDelay( 200 / portTICK_PERIOD_MS );
       }
       while(wp_read > 1250){     //if wp shutdown
-         wp_esc.writeMicroseconds(1000);
          Serial.print("wp_shutdown: ");
          Serial.println(wp_read);
          vTaskDelay( 200 / portTICK_PERIOD_MS );
@@ -138,12 +126,9 @@ void Task_wpshutdown(void *pvParameters){
       if(shutdown_stats){    //if status ok
         Serial.println("wp_start");
         shutdown_stats = 0;
-        wp_pwm = 1000;
         vTaskResume(lpwm_output_handle);
         vTaskResume(rpwm_output_handle);
       }
-      wp_esc.writeMicroseconds(wp_pwm);
-      //Serial.println(wp_pwm);
       vTaskDelay( 200 / portTICK_PERIOD_MS );
     }
 }
@@ -291,7 +276,7 @@ void Task_rpwm_output(void *pvParameters){
       //Serial.print("r_pwm: ");
       //Serial.println(r_pwm);
       Serial.print("r_pwm_fix: ");
-      Serial.println(abs(rpwm_fix));
+      Serial.println(rpwm_fix);
       
       r_esc.writeMicroseconds(abs(rpwm_fix));
       rpwm_last = rpwm_fix;
