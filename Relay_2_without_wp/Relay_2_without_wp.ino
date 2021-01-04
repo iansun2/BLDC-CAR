@@ -80,7 +80,7 @@ void Task_pwm_input(void *pvParameters){
     wp_read = pulseIn(shutdown_input_pin,1,pulse_timeout);   //read weapon pwm input 
 
     //current sensor input//---------------------------------------------------
-    
+    /*
     //lcurrent in//
       current_read = abs(analogRead(lcurrent_input_pin) - 512);
       if(current_read >= wheel_current_max){
@@ -96,7 +96,7 @@ void Task_pwm_input(void *pvParameters){
       }else if(r_pwm_max <= 1980){
         r_pwm_max += 20;
       }
-     
+     */
       vTaskDelay( 50 / portTICK_PERIOD_MS );
   }
 }
@@ -182,16 +182,16 @@ void Task_lpwm_output(void *pvParameters){
     */
     if(lpwm_fix < 0 && !l_reverse){   //left positive to negative
       l_esc.writeMicroseconds(1000);
-      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       digitalWrite(l_relay_pin,1);
-      vTaskDelay( 500 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       l_reverse = 1;
       Serial.println("left positive to negative");
     }else if(lpwm_fix > 0 && l_reverse){     //left negative to positive
       l_esc.writeMicroseconds(1000);
-      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       digitalWrite(l_relay_pin,0);
-      vTaskDelay( 500 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       l_reverse = 0;
       Serial.println("left negative to positive");
     }
@@ -245,7 +245,7 @@ void Task_rpwm_output(void *pvParameters){
       rpwm_fix = 1000;
       rpwm_last = 1000;
     }
-    */
+    
     
     if( abs(rpwm_fix) > r_pwm_max){
       if(rpwm_fix > 0){
@@ -254,19 +254,19 @@ void Task_rpwm_output(void *pvParameters){
         rpwm_fix = -r_pwm_max;
       }
     }
-
+*/
     if(rpwm_fix < 0 && !r_reverse){   //left positive to negative
       r_esc.writeMicroseconds(1000);
-      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       digitalWrite(r_relay_pin,1);
-      vTaskDelay( 500 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       r_reverse = 1;
       Serial.println("right positive to negative");
     }else if(rpwm_fix > 0 && r_reverse){     //left negative to positive
       r_esc.writeMicroseconds(1000);
-      vTaskDelay( 300 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       digitalWrite(r_relay_pin,0);
-      vTaskDelay( 500 / portTICK_PERIOD_MS );
+      vTaskDelay( 100 / portTICK_PERIOD_MS );
       r_reverse = 0;
       Serial.println("right negative to positive");
     }

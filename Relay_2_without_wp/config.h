@@ -12,7 +12,7 @@
 #define r_relay_pin 11
 
 #define pulse_timeout 50000
-#define wheel_current_max 80   //20A *4
+#define wheel_current_max 10000   //20A *4
 
 #define wheel_stop_pwm 1000
 
